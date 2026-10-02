@@ -67,7 +67,7 @@ input:focus-visible {
   position: relative;
   max-width: 1080px;
   width: calc(100% - 64px);
-  margin: auto;
+  margin: 0 auto 40px;
 }
 .atmosphere {
   position: fixed;
@@ -103,6 +103,7 @@ input:focus-visible {
   margin-left: auto;
 }
 .text-button {
+  margin-left: auto;
   color: #e6dfd2;
   background: transparent;
   border: 0;
@@ -167,7 +168,7 @@ input:focus-visible {
   font-size: clamp(52px, 8.8vw, 94px);
   font-weight: 700;
   line-height: 1;
-  margin: 0;
+  margin: 24px 0;
   letter-spacing: -0.07em;
   text-shadow: 0 3px 24px #0005;
 }
@@ -224,7 +225,7 @@ input:focus-visible {
 }
 .card-heading {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 16px;
 }

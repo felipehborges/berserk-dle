@@ -34,6 +34,7 @@ export default function Game() {
   const [active, setActive] = useState(-1);
   const [open, setOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
+  const [announcement, setAnnouncement] = useState('');
   const [storageWarning, setStorageWarning] = useState(false);
   const [shareFallback, setShareFallback] = useState('');
   const [shareStatus, setShareStatus] = useState('');
@@ -199,7 +200,8 @@ export default function Game() {
     setQuery('');
     setOpen(false);
     setActive(-1);
-    setFeedback(
+    setFeedback('');
+    setAnnouncement(
       `${character.name}: ${fields.map(({ key, label }) => `${label}, ${clueLabels[compare(character, answer, key)]}`).join('. ')}.`,
     );
     inputRef.current?.focus();
@@ -234,7 +236,6 @@ export default function Game() {
           <Link className="wordmark" href="/" aria-label="Berserkdle, início">
             <span aria-hidden="true">✦</span> BERSERKDLE
           </Link>
-          <span className="edition">UM DESAFIO POR DIA</span>
           <button
             className="text-button"
             onClick={() => helpRef.current?.showModal()}
@@ -247,15 +248,9 @@ export default function Game() {
           <div className="eclipse" aria-hidden="true">
             <span />
           </div>
-          <p className="eyebrow">ENTRE O DESTINO E A VONTADE</p>
           <h1 id="title">
             BERSERK<span>DLE</span>
           </h1>
-          <p className="hero-copy">
-            Um personagem. Oito tentativas.
-            <br />
-            Encontre um nome em meio à escuridão.
-          </p>
           <div className="divider" aria-hidden="true">
             <span />◆<span />
           </div>
@@ -268,16 +263,9 @@ export default function Game() {
           aria-busy={!session}
         >
           <div className="card-heading">
-            <div>
-              <p className="section-label">
-                PERSONAGEM DO DIA{' '}
-                <span>
-                  {' '}
-                  / {daily ? `#${String(daily.number).padStart(3, '0')}` : '—'}
-                </span>
-              </p>
-              <h2 id="game-title">Quem atravessa seu caminho?</h2>
-            </div>
+            <h2 id="game-title" className="sr-only">
+              Adivinhe o personagem
+            </h2>
             <div
               className="attempt-pill"
               aria-label={`${guesses.length} de ${MAX_GUESSES} tentativas`}
@@ -291,18 +279,11 @@ export default function Game() {
               <span key={i} className={i < guesses.length ? 'used' : ''} />
             ))}
           </div>
-          <p className="context-note">
-            {characters.length} personagens · Fichas com recortes até o Falcão
-            Milenar.{' '}
-            <button onClick={() => helpRef.current?.showModal()}>
-              Entenda as pistas
-            </button>
-          </p>
 
           {!finished && (
             <form onSubmit={submit} className="guess-form" autoComplete="off">
               <div className="input-wrap">
-                <label htmlFor="character-input">
+                <label htmlFor="character-input" className="sr-only">
                   Nome ou apelido do personagem
                 </label>
                 <div className="search-field">
@@ -319,7 +300,6 @@ export default function Game() {
                         ? `suggestion-${matches[active]?.id}`
                         : undefined
                     }
-                    aria-describedby="search-hint"
                     autoComplete="off"
                     spellCheck={false}
                     maxLength={80}
@@ -367,7 +347,6 @@ export default function Game() {
                       onClick={() => choose(c.name)}
                     >
                       <span>{c.name}</span>
-                      <small>Selecionar ↗</small>
                     </li>
                   ))}
                 </ul>
@@ -381,15 +360,11 @@ export default function Game() {
               </button>
             </form>
           )}
-          {!finished && (
-            <p className="hint" id="search-hint">
-              {query.trim() && matches.length === 0
-                ? 'Nenhum personagem disponível com esse nome. Confira a grafia ou um apelido.'
-                : 'Digite para buscar. Use ↑ ↓ e Enter para selecionar; Enter novamente para tentar.'}
-            </p>
-          )}
           <p className="feedback" role="status">
             {feedback}
+          </p>
+          <p className="sr-only" role="status">
+            {announcement}
           </p>
           {storageWarning && (
             <p className="storage-warning" role="status">
@@ -398,7 +373,7 @@ export default function Game() {
             </p>
           )}
 
-          {guesses.length ? (
+          {guesses.length > 0 && (
             <div
               className="table-wrap"
               role="region"
@@ -458,25 +433,7 @@ export default function Game() {
                 </tbody>
               </table>
             </div>
-          ) : (
-            <div className="empty-state">
-              <div className="sword" aria-hidden="true" />
-              <p>A jornada começa com um nome.</p>
-              <span>Seu primeiro palpite revela as primeiras pistas.</span>
-            </div>
           )}
-
-          <div className="legend" aria-label="Legenda das pistas">
-            <span>
-              <b className="legend-match">✓</b> Igual
-            </span>
-            <span>
-              <b className="legend-miss">×</b> Diferente
-            </span>
-            <span>
-              <b>↓ / ↑</b> Arco anterior / posterior
-            </span>
-          </div>
         </section>
 
         {finished && daily && (
@@ -486,20 +443,11 @@ export default function Game() {
             tabIndex={-1}
             ref={resultRef}
           >
-            <p className="eyebrow">
-              {won ? 'O DESTINO FOI DESVENDADO' : 'A NOITE CHEGOU AO FIM'}
-            </p>
             <h2 id="result-title">
               {won
                 ? `Você encontrou ${daily.answer.name}.`
                 : `O personagem era ${daily.answer.name}.`}
             </h2>
-            <p>
-              {won
-                ? `${guesses.length} de ${MAX_GUESSES} tentativas. Cada pista abriu um caminho.`
-                : 'As oito tentativas terminaram. Amanhã, um novo caminho.'}
-            </p>
-            <p className="editorial-note">{daily.answer.note}</p>
             <button className="primary" onClick={share}>
               Compartilhar resultado <span aria-hidden="true">↗</span>
             </button>
@@ -517,30 +465,8 @@ export default function Game() {
                 />
               </label>
             )}
-            <p className="next-day">
-              O próximo desafio chega à 00h de Brasília.
-            </p>
           </section>
         )}
-
-        <div className="below-card">
-          <span aria-hidden="true">✦</span>
-          <p>
-            Uma nova jornada à meia-noite.
-            <small>Horário de Brasília · Progresso salvo neste navegador</small>
-          </p>
-        </div>
-        <footer>
-          <span>
-            BERSERKDLE <span className="footer-slash">/</span> PROJETO DE FÃS
-          </span>
-          <p>
-            Inspirado no universo de Kentaro Miura.
-            <br />
-            Projeto independente, sem afiliação oficial.
-          </p>
-          <span className="footer-tag">PERSISTIR É PARTE DO JOGO.</span>
-        </footer>
       </main>
 
       <dialog

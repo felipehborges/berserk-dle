@@ -50,6 +50,15 @@ Os palpites ficam em `localStorage`, na chave `berserkdle:v1:AAAA-MM-DD`. A rest
 
 Os elementos gráficos são CSS e texto originais, com fontes locais do sistema. Nenhum quadro do mangá, imagem de personagem ou fonte remota é carregado.
 
+## Continuidade em outro computador
+
+Depois de clonar o repositório, execute `npm ci` e siga a seção **Rodar**. O jogo não usa `.env`, banco de dados ou credenciais.
+
+- A interface principal foi deliberadamente reduzida: não exibe contador editorial, quantidade do elenco, rótulo do campo, instrução de busca, mensagem detalhada após o palpite, estado vazio, legenda ou rodapé. O contador `tentativas` e a tabela de pistas continuam visíveis.
+- Textos de apoio que ainda são necessários para teclado e leitores de tela ficam visualmente ocultos em `src/components/game.tsx` com a classe `sr-only`.
+- Dados, apelidos e recortes editoriais estão em `src/data/characters.ts`; a política de revisão está em `docs/editorial.md`.
+- A porta de desenvolvimento sugerida é 3001. Os testes E2E reservam a 3107.
+
 ## Verificação
 
 ```sh
