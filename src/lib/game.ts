@@ -1,12 +1,11 @@
 import { arcs, characters, type Character } from '../data/characters';
 
-export const MAX_GUESSES = 8;
 export const TIME_ZONE = 'America/Sao_Paulo';
-export const EDITION = 'v1';
 const DAY_MS = 86_400_000;
 const epoch = Date.UTC(2026, 9, 1);
-// Calendário congelado: adicionar/reordenar fichas não altera desafios existentes.
-export const schedule = [
+const expandedEpoch = Date.UTC(2026, 9, 3);
+// Preserve answers before the expanded roster starts on October 3.
+export const legacySchedule = [
   'judeau',
   'irvine',
   'guts',
@@ -22,22 +21,35 @@ export const schedule = [
   'locus',
   'isidro',
 ] as const;
+// The first fifteen slots are unchanged. The complete manga roster follows.
+export const schedule = [
+  'femto',
+  ...legacySchedule,
+  ...characters
+    .filter(
+      (c) => c.id !== 'femto' && !legacySchedule.some((id) => id === c.id),
+    )
+    .map((c) => c.id),
+] as const;
 export const fields = [
+  { key: 'gender', label: 'Gênero' },
   { key: 'nature', label: 'Natureza' },
   { key: 'group', label: 'Núcleo' },
-  { key: 'weapon', label: 'Arma principal' },
+  { key: 'weapon', label: 'Armas / poderes' },
   { key: 'arc', label: 'Arco de referência' },
 ] as const;
 export type Field = (typeof fields)[number]['key'];
-export type Clue = 'match' | 'earlier' | 'later' | 'miss';
+export type Clue = 'match' | 'partial' | 'earlier' | 'later' | 'miss';
 export const clueLabels: Record<Clue, string> = {
   match: 'Igual',
+  partial: 'Parcial: pelo menos um atributo em comum',
   miss: 'Diferente',
   earlier: 'Resposta em arco anterior',
   later: 'Resposta em arco posterior',
 };
 export const clueSymbols: Record<Clue, string> = {
   match: '✓',
+  partial: '≈',
   miss: '×',
   earlier: '↓',
   later: '↑',
@@ -55,9 +67,16 @@ export function dateInBrasilia(now = new Date()): string {
     .join('-');
 }
 export function challenge(date: string) {
-  const day = Math.floor((Date.parse(`${date}T00:00:00Z`) - epoch) / DAY_MS);
+  const timestamp = Date.parse(`${date}T00:00:00Z`);
+  const day = Math.floor((timestamp - epoch) / DAY_MS);
+  const calendar = timestamp >= expandedEpoch ? schedule : legacySchedule;
+  const calendarDay = Math.floor(
+    (timestamp - (timestamp >= expandedEpoch ? expandedEpoch : epoch)) / DAY_MS,
+  );
   const id =
-    schedule[((day % schedule.length) + schedule.length) % schedule.length];
+    calendar[
+      ((calendarDay % calendar.length) + calendar.length) % calendar.length
+    ];
   return {
     date,
     number: day + 1,
@@ -76,9 +95,7 @@ export function search(query: string, excluded: readonly string[] = []) {
   const needle = normalize(query);
   return needle
     ? characters.filter(
-        (c) =>
-          !excluded.includes(c.id) &&
-          [c.name, ...c.aliases].some((n) => normalize(n).includes(needle)),
+        (c) => !excluded.includes(c.id) && normalize(c.name).includes(needle),
       )
     : [];
 }
@@ -92,6 +109,18 @@ export function compare(
   answer: Character,
   field: Field,
 ): Clue {
+  if (field === 'nature' || field === 'group' || field === 'weapon') {
+    const guessed = new Set<string>(guess[field]);
+    const expected = new Set<string>(answer[field]);
+    if (
+      guessed.size === expected.size &&
+      [...guessed].every((value) => expected.has(value))
+    )
+      return 'match';
+    return [...guessed].some((value) => expected.has(value))
+      ? 'partial'
+      : 'miss';
+  }
   if (guess[field] === answer[field]) return 'match';
   if (field === 'arc')
     return arcs.indexOf(answer.arc) > arcs.indexOf(guess.arc)
@@ -100,10 +129,12 @@ export function compare(
   return 'miss';
 }
 export function isFinished(guesses: readonly string[], answerId: string) {
-  return guesses.includes(answerId) || guesses.length >= MAX_GUESSES;
+  return guesses.includes(answerId);
 }
 export function storageKey(date: string) {
-  return `berserkdle:${EDITION}:${date}`;
+  const edition =
+    Date.parse(`${date}T00:00:00Z`) >= expandedEpoch ? 'v2' : 'v1';
+  return `berserkdle:${edition}:${date}`;
 }
 export function restore(raw: string | null, date: string): string[] {
   try {
@@ -135,21 +166,19 @@ export function restore(raw: string | null, date: string): string[] {
 }
 export function shareText(date: string, guesses: readonly string[]) {
   const { number, answer } = challenge(date);
-  const score = guesses.includes(answer.id) ? guesses.length : 'X';
   const grid = guesses
     .map((id) =>
       fields
-        .map(({ key }) =>
-          compare(
+        .map(({ key }) => {
+          const clue = compare(
             characters.find((c) => c.id === id)!,
             answer,
             key,
-          ) === 'match'
-            ? '🟩'
-            : '🟥',
-        )
+          );
+          return clue === 'match' ? '🟩' : clue === 'partial' ? '🟧' : '🟥';
+        })
         .join(''),
     )
     .join('\n');
-  return `BERSERKDLE #${number} · ${date}\nPersonagem ${score}/${MAX_GUESSES}\n${grid}`;
+  return `BERSERKDLE #${number} · ${date}\n${guesses.includes(answer.id) ? 'Personagem encontrado' : 'Em andamento'}\n${grid}`;
 }

@@ -10,7 +10,79 @@ async function boot(page: Page) {
 async function guess(page: Page, name: string) {
   await page.getByRole('combobox').fill(name);
   await page.getByRole('button', { name: 'Arriscar palpite' }).click();
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .every((animation) => animation.playState !== 'running'),
+  );
 }
+
+test('historical affiliations and arsenals show orange overlap and survive reload', async ({
+  page,
+}) => {
+  await boot(page);
+  await guess(page, 'Guts');
+  const row = page.locator('tbody tr').first();
+  const cells = row.getByRole('cell');
+  await expect(cells.nth(2).locator('.clue')).toHaveClass(/partial/);
+  await expect(cells.nth(2)).toContainText('Bando do Falcão');
+  await expect(cells.nth(2)).toContainText('Grupo de Guts');
+  await expect(cells.nth(3).locator('.clue')).toHaveClass(/partial/);
+  await expect(cells.nth(3)).toContainText('Espada');
+  await expect(cells.nth(3)).toContainText('Besta');
+  await expect(cells.nth(0).locator('.clue')).toHaveClass(/match/);
+  await expect(cells.nth(4).locator('.clue')).not.toHaveClass(/partial/);
+  await expect(page.getByLabel('Indicadores das pistas')).toContainText(
+    'Parcial',
+  );
+  await page.reload();
+  await expect(page.locator('tbody tr .clue.partial')).toHaveCount(2);
+  await guess(page, 'Judeau');
+  await expect(
+    page.locator('tbody tr').first().locator('.clue.match'),
+  ).toHaveCount(5);
+});
+
+test('expanded manga roster submits aliases and portraits, including Fantasia and explicit missing images', async ({
+  page,
+}) => {
+  await boot(page);
+  for (const [query, name] of [
+    ['Molda', 'Molda'],
+    ['Danan', 'Danan'],
+    ['Isma', 'Isma'],
+    ['Silat', 'Silat'],
+  ] as const) {
+    await page.getByRole('combobox').fill(query);
+    const option = page
+      .getByRole('option')
+      .filter({ has: page.getByText(name, { exact: true }) });
+    await expect(
+      option.getByRole('img', { name: `Retrato de ${name}`, exact: true }),
+    ).toBeVisible();
+    await option.click();
+    await expect(page.locator('tbody tr').first()).toContainText(name);
+    const portrait = page
+      .locator('tbody tr')
+      .first()
+      .getByRole('img', { name: `Retrato de ${name}`, exact: true });
+    await expect(portrait).toBeVisible();
+    await expect
+      .poll(() =>
+        portrait.evaluate((image) => (image as HTMLImageElement).naturalWidth),
+      )
+      .toBeGreaterThan(0);
+  }
+  await expect(
+    page.locator('tbody tr').filter({ hasText: 'Danan' }),
+  ).toContainText('Fantasia');
+  await guess(page, 'Carcereiro da Torre');
+  await expect(
+    page.locator('tbody tr').first().locator('.weapon-empty'),
+  ).toHaveText('×');
+  await page.reload();
+  await expect(page.locator('tbody tr')).toHaveCount(5);
+});
 
 test('keyboard alias search, invalid/repeated guesses, win, reload and share fallback', async ({
   page,
@@ -23,19 +95,17 @@ test('keyboard alias search, invalid/repeated guesses, win, reload and share fal
     page.getByText('Escolha um personagem da lista ou digite o nome completo.'),
   ).toBeVisible();
   await guess(page, 'Gatts');
-  await expect(page.getByLabel('1 de 8 tentativas')).toBeVisible();
+  await expect(page.locator('tbody tr')).toHaveCount(1);
   await guess(page, 'Guts');
   await expect(
     page.getByText('Você já tentou esse personagem. Escolha outro nome.'),
   ).toBeVisible();
-  await page.getByRole('combobox').fill('judô');
+  await page.getByRole('combobox').fill('jude');
   await page.getByRole('combobox').press('ArrowDown');
   await expect(page.getByRole('option', { name: /Judeau/ })).toHaveAttribute(
     'aria-selected',
     'true',
   );
-  await page.getByRole('combobox').press('Enter');
-  await expect(page.getByRole('combobox')).toHaveValue('Judeau');
   await page.getByRole('combobox').press('Enter');
   await expect(
     page.getByRole('heading', { name: 'Você encontrou Judeau.' }),
@@ -57,7 +127,7 @@ test('keyboard alias search, invalid/repeated guesses, win, reload and share fal
   });
   await page.getByRole('button', { name: 'Compartilhar resultado' }).click();
   await expect(page.getByLabel('Resultado para copiar')).toContainText(
-    'Personagem 2/8',
+    'Personagem encontrado',
   );
   await expect(page.getByLabel('Resultado para copiar')).not.toContainText(
     'Judeau',
@@ -65,7 +135,7 @@ test('keyboard alias search, invalid/repeated guesses, win, reload and share fal
   expect(errors).toEqual([]);
 });
 
-test('eight wrong guesses reveal answer and permanently stop input for the day', async ({
+test('unlimited guesses survive reload and only a correct character ends the game', async ({
   page,
 }) => {
   await boot(page);
@@ -80,14 +150,21 @@ test('eight wrong guesses reveal answer and permanently stop input for the day',
     'Rickert',
   ])
     await guess(page, name);
-  await expect(
-    page.getByRole('heading', { name: 'O personagem era Judeau.' }),
-  ).toBeVisible();
-  await expect(page.getByLabel('8 de 8 tentativas')).toBeVisible();
+  await expect(page.getByRole('combobox')).toBeEnabled();
+  await expect(page.locator('tbody tr')).toHaveCount(8);
   await page.reload();
+  await expect(page.getByRole('combobox')).toBeEnabled();
+  await guess(page, 'Femto');
+  await expect(page.locator('tbody tr')).toHaveCount(9);
+  await expect(page.getByRole('combobox')).toBeEnabled();
   await expect(
-    page.getByRole('heading', { name: 'O personagem era Judeau.' }),
+    page.getByRole('columnheader', { name: 'Gênero' }),
   ).toBeVisible();
+  await guess(page, 'Judeau');
+  await expect(
+    page.getByRole('heading', { name: 'Você encontrou Judeau.' }),
+  ).toBeVisible();
+  await expect(page.locator('tbody tr')).toHaveCount(10);
   await expect(page.getByRole('combobox')).toHaveCount(0);
 });
 
@@ -98,9 +175,9 @@ test('midnight in Brasília resets an open game, independent of browser timezone
   await guess(page, 'Guts');
   await page.clock.setSystemTime(new Date('2026-10-02T02:59:59Z'));
   await page.clock.runFor(500);
-  await expect(page.getByLabel('1 de 8 tentativas')).toBeVisible();
+  await expect(page.locator('tbody tr')).toHaveCount(1);
   await page.clock.runFor(1500);
-  await expect(page.getByLabel('0 de 8 tentativas')).toBeVisible();
+  await expect(page.locator('tbody tr')).toHaveCount(0);
   await expect(
     page.getByText('Virou o dia em Brasília. Um novo desafio começou.'),
   ).toBeVisible();
@@ -115,7 +192,7 @@ test('corrupt local save and denied storage remain playable', async ({
 }) => {
   await page.addInitScript((key) => localStorage.setItem(key, '{invalid'), key);
   await boot(page);
-  await expect(page.getByLabel('0 de 8 tentativas')).toBeVisible();
+  await expect(page.locator('tbody tr')).toHaveCount(0);
   await page.evaluate(() => {
     Storage.prototype.setItem = () => {
       throw new Error('denied');
@@ -189,7 +266,7 @@ test('progress synchronizes across tabs', async ({ page, context }) => {
   const second = await context.newPage();
   await boot(second);
   await guess(page, 'Guts');
-  await expect(second.getByLabel('1 de 8 tentativas')).toBeVisible();
+  await expect(second.locator('tbody tr')).toHaveCount(1);
   await guess(second, 'Judeau');
   await expect(
     page.getByRole('heading', { name: 'Você encontrou Judeau.' }),
@@ -202,17 +279,15 @@ test('pointer selection, narrow viewport, partial reload and clipboard success',
 }) => {
   await boot(page);
   if (isMobile) await page.setViewportSize({ width: 320, height: 740 });
-  await page.getByRole('combobox').fill('Gatts');
+  await page.getByRole('combobox').fill('Guts');
   const option = page.getByRole('option', { name: /Guts/ });
   if (isMobile) await option.tap();
   else await option.click();
-  await expect(page.getByRole('combobox')).toHaveValue('Guts');
-  const submit = page.getByRole('button', { name: 'Arriscar palpite' });
-  if (isMobile) await submit.tap();
-  else await submit.click();
-  await expect(page.getByLabel('1 de 8 tentativas')).toBeVisible();
+  await expect(page.getByRole('combobox')).toHaveValue('');
+  await expect(page.getByRole('listbox')).not.toBeVisible();
+  await expect(page.locator('tbody tr')).toHaveCount(1);
   await page.reload();
-  await expect(page.getByLabel('1 de 8 tentativas')).toBeVisible();
+  await expect(page.locator('tbody tr')).toHaveCount(1);
   expect(
     await page.evaluate(
       () =>
@@ -239,10 +314,47 @@ test('pointer selection, narrow viewport, partial reload and clipboard success',
   await expect(page.getByText('Resultado copiado!')).toBeVisible();
   await expect(page.locator('body')).toHaveAttribute(
     'data-copied-result',
-    /Personagem 2\/8/,
+    /Personagem encontrado/,
   );
   await expect(page.locator('body')).not.toHaveAttribute(
     'data-copied-result',
     /Judeau/,
   );
+});
+
+test('test reset clears a finished game, persists and syncs without deleting other days', async ({
+  page,
+  context,
+}) => {
+  await boot(page);
+  await page.evaluate(() =>
+    localStorage.setItem('berserkdle:v1:2026-09-30', 'previous-day'),
+  );
+  await guess(page, 'Judeau');
+  await expect(
+    page.getByRole('heading', { name: 'Você encontrou Judeau.' }),
+  ).toBeVisible();
+  const other = await context.newPage();
+  await other.clock.install({ time: new Date('2026-10-01T15:00:00Z') });
+  await other.goto('/');
+  await expect(
+    other.getByRole('heading', { name: 'Você encontrou Judeau.' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: /Resetar jogo/ }).click();
+  await expect(page.locator('tbody tr')).toHaveCount(0);
+  await expect(page.getByRole('combobox')).toBeFocused();
+  await expect(
+    page.getByRole('button', { name: 'Compartilhar resultado' }),
+  ).toHaveCount(0);
+  await expect(other.locator('tbody tr')).toHaveCount(0);
+  expect(
+    await page.evaluate(() => localStorage.getItem('berserkdle:v1:2026-09-30')),
+  ).toBe('previous-day');
+  await page.reload();
+  await expect(page.locator('tbody tr')).toHaveCount(0);
+  await guess(page, 'Guts');
+  await expect(page.locator('tbody tr')).toHaveCount(1);
+  await page.getByRole('button', { name: /Resetar jogo/ }).click();
+  await expect(page.locator('tbody tr')).toHaveCount(0);
+  await other.close();
 });

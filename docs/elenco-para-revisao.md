@@ -1,0 +1,122 @@
+# Elenco atual
+
+118 personagens após a revisão. [Histórico das remoções](elenco-removido.md).
+
+- Adolf
+- Adon
+- Adonis
+- Anna
+- Azan
+- Barba de Osso
+- Barbo
+- Bazuso
+- Besta das Trevas
+- Borkoff
+- Boscogn
+- Carcereiro da Torre
+- Casca
+- Charlotte
+- Chitch
+- Collette
+- Conde
+- Conrad
+- Corkus
+- Criança Demoníaca
+- Dahl
+- Daiba
+- Danan
+- Deg
+- Deus do Mar
+- Donovan
+- Elize
+- Erica
+- Farnese
+- Federico de Vandimion III
+- Femto
+- Flora
+- Foss
+- Fouquet
+- Gaiseric
+- Gambino
+- Ganishka
+- Gaston
+- Gedfring
+- Gennon
+- Gerico
+- Gien
+- Ginnar
+- Godot
+- Grande Bode
+- Griffith
+- Grunbeld
+- Guts
+- Hanarr
+- Ideia do Mal
+- Iony
+- Irvine
+- Isidro
+- Isma
+- Ivalera
+- Jarif
+- Jerome
+- Jill
+- Joachim
+- Judeau
+- Julius
+- Kukka
+- Laban
+- Lady Vandimion
+- Locus
+- Luca
+- Lucie
+- Mãe de Isma
+- Magnifico
+- Martino
+- Menino do Luar
+- Molda
+- Morgan
+- Mozgus
+- Mule
+- Nina
+- Ovo do Mundo Perfeito
+- Owen
+- Peekaf
+- Pepe
+- Pippin
+- Pontífice
+- Puck
+- Rainha de Midland
+- Rakshas
+- Rei de Midland
+- Rei do Leste
+- Rei do Norte
+- Rei do Oeste
+- Rei do Sul
+- Rickert
+- Roderick
+- Rosine
+- Sacerdotisa das Cerejeiras
+- Samson
+- Saritus
+- Schierke
+- Schnoz
+- Senhor Serpente
+- Serpico
+- Shisu
+- Silat
+- Skirbil
+- Skull Knight
+- Slan
+- Sonia
+- Tapasa
+- Theresia
+- Theuene
+- Thraein
+- Ubik
+- Vargas
+- Void
+- Volvaba
+- Wyald
+- Zepek
+- Zodd
+- Zondark

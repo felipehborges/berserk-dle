@@ -8,24 +8,69 @@ import {
   type KeyboardEvent,
 } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { characters } from '@/data/characters';
 import {
   challenge,
   clueLabels,
-  clueSymbols,
   compare,
   dateInBrasilia,
   exactCharacter,
   fields,
   isFinished,
-  MAX_GUESSES,
   restore,
+  schedule,
   search,
   shareText,
   storageKey,
 } from '@/lib/game';
 
 type Session = { date: string; guesses: string[] };
+
+function Portrait({
+  id,
+  name,
+  large = false,
+}: {
+  id: string;
+  name: string;
+  large?: boolean;
+}) {
+  const character = characters.find((character) => character.id === id)!;
+  const crop = character.portraitCrop;
+  return (
+    <div className={`portrait${large ? ' portrait-large' : ''}`}>
+      {character.image ? (
+        <Image
+          src={character.image}
+          alt={`Retrato de ${name}`}
+          width={large ? 400 : 256}
+          height={large ? 400 : 256}
+          style={
+            crop
+              ? {
+                  width: `${10000 / crop[2]}%`,
+                  height: `${10000 / crop[3]}%`,
+                  left: `${(-100 * crop[0]) / crop[2]}%`,
+                  top: `${(-100 * crop[1]) / crop[3]}%`,
+                  objectFit: 'fill',
+                }
+              : undefined
+          }
+        />
+      ) : (
+        <span
+          className="portrait-unavailable"
+          role="img"
+          aria-label={`Retrato de ${name} não confirmado`}
+        >
+          <span aria-hidden="true">?</span>
+          Sem retrato
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function Game() {
   const [session, setSession] = useState<Session | null>(null);
@@ -38,6 +83,7 @@ export default function Game() {
   const [storageWarning, setStorageWarning] = useState(false);
   const [shareFallback, setShareFallback] = useState('');
   const [shareStatus, setShareStatus] = useState('');
+  const [revealedId, setRevealedId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const helpRef = useRef<HTMLDialogElement>(null);
   const resultRef = useRef<HTMLElement>(null);
@@ -93,8 +139,10 @@ export default function Game() {
   }, []);
 
   const daily = session ? challenge(session.date) : null;
-  const guesses = session?.guesses ?? [];
-  const won = !!daily && guesses.includes(daily.answer.id);
+  const guesses = (session?.guesses ?? []).filter((id) =>
+    characters.some((character) => character.id === id),
+  );
+
   const finished = !!daily && isFinished(guesses, daily.answer.id);
   const matches = search(query, guesses);
   const expanded = open && matches.length > 0;
@@ -111,11 +159,28 @@ export default function Game() {
   }, [finished]);
 
   function choose(name: string) {
-    setQuery(name);
+    submitGuess(name);
+  }
+
+  // Temporary testing control: restart only today's challenge.
+  function resetGame() {
+    const date = dateInBrasilia();
+    try {
+      localStorage.removeItem(storageKey(date));
+      setStorageWarning(false);
+    } catch {
+      setStorageWarning(true);
+    }
+    update({ date, guesses: [] });
+    setQuery('');
     setOpen(false);
     setActive(-1);
-    setFeedback('');
-    inputRef.current?.focus();
+    setRevealedId(null);
+    setShareFallback('');
+    setShareStatus('');
+    setAnnouncement('');
+    setFeedback('Desafio reiniciado. Você pode testar novamente.');
+    requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   function onKeys(event: KeyboardEvent<HTMLInputElement>) {
@@ -143,6 +208,10 @@ export default function Game() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    submitGuess(query);
+  }
+
+  function submitGuess(name: string) {
     const current = sessionRef.current;
     if (!current) return;
     const date = dateInBrasilia();
@@ -180,7 +249,7 @@ export default function Game() {
       update({ date, guesses: previous });
       return;
     }
-    const character = exactCharacter(query);
+    const character = exactCharacter(name);
     if (!character) {
       setFeedback('Escolha um personagem da lista ou digite o nome completo.');
       setOpen(true);
@@ -191,6 +260,7 @@ export default function Game() {
       return;
     }
     const next = { date, guesses: [...previous, character.id] };
+    setRevealedId(character.id);
     update(next);
     try {
       localStorage.setItem(storageKey(date), JSON.stringify(next));
@@ -232,29 +302,37 @@ export default function Game() {
       </a>
       <div className="atmosphere" aria-hidden="true" />
       <main className="shell">
-        <header className="topbar">
+        <header className="hero">
           <Link className="wordmark" href="/" aria-label="Berserkdle, início">
-            <span aria-hidden="true">✦</span> BERSERKDLE
+            <p className="japanese" aria-hidden="true">
+              ベルセルク
+            </p>
+            <h1 id="title">
+              BERSERK<span>DLE</span>
+            </h1>
           </Link>
+          <p className="hero-copy">Um novo destino. Todos os dias.</p>
+          <div className="game-toolbar">
+            <span className="mode-badge">
+              <span aria-hidden="true">⚔</span> Clássico
+            </span>
+            <span className="toolbar-divider" aria-hidden="true" />
+            <button
+              className="help-button"
+              onClick={() => helpRef.current?.showModal()}
+            >
+              <span aria-hidden="true">?</span> Como jogar
+            </button>
+          </div>
           <button
-            className="text-button"
-            onClick={() => helpRef.current?.showModal()}
+            className="reset-button"
+            onClick={resetGame}
+            disabled={!session}
           >
-            Como jogar <span aria-hidden="true">↗</span>
+            <span aria-hidden="true">↻</span> Resetar jogo
+            <small>TESTE</small>
           </button>
         </header>
-
-        <section className="hero" aria-labelledby="title">
-          <div className="eclipse" aria-hidden="true">
-            <span />
-          </div>
-          <h1 id="title">
-            BERSERK<span>DLE</span>
-          </h1>
-          <div className="divider" aria-hidden="true">
-            <span />◆<span />
-          </div>
-        </section>
 
         <section
           id="game"
@@ -263,103 +341,101 @@ export default function Game() {
           aria-busy={!session}
         >
           <div className="card-heading">
-            <h2 id="game-title" className="sr-only">
-              Adivinhe o personagem
+            <p className="section-label">O DESAFIO DIÁRIO</p>
+            <h2 id="game-title">
+              Quem é o personagem
+              <br />
+              de <em>Berserk</em> de hoje?
             </h2>
-            <div
-              className="attempt-pill"
-              aria-label={`${guesses.length} de ${MAX_GUESSES} tentativas`}
-            >
-              <strong>{guesses.length}</strong>
-              <span> / {MAX_GUESSES}</span>
-            </div>
-          </div>
-          <div className="attempt-track" aria-hidden="true">
-            {Array.from({ length: MAX_GUESSES }, (_, i) => (
-              <span key={i} className={i < guesses.length ? 'used' : ''} />
-            ))}
-          </div>
+            <p className="challenge-copy">
+              Siga as pistas. Desafie a causalidade.
+            </p>
 
-          {!finished && (
-            <form onSubmit={submit} className="guess-form" autoComplete="off">
-              <div className="input-wrap">
-                <label htmlFor="character-input" className="sr-only">
-                  Nome ou apelido do personagem
-                </label>
-                <div className="search-field">
-                  <span aria-hidden="true">⌕</span>
-                  <input
-                    id="character-input"
-                    ref={inputRef}
-                    role="combobox"
-                    aria-autocomplete="list"
-                    aria-expanded={expanded}
-                    aria-controls="suggestions"
-                    aria-activedescendant={
-                      expanded && active >= 0
-                        ? `suggestion-${matches[active]?.id}`
-                        : undefined
-                    }
-                    autoComplete="off"
-                    spellCheck={false}
-                    maxLength={80}
-                    placeholder={
-                      session
-                        ? 'Busque um personagem…'
-                        : 'Preparando o desafio…'
-                    }
-                    value={query}
-                    disabled={!session}
-                    onChange={(event) => {
-                      setQuery(event.target.value);
-                      setOpen(true);
-                      setActive(-1);
-                      setFeedback('');
-                    }}
-                    onKeyDown={onKeys}
-                    onFocus={() => setOpen(true)}
-                    onBlur={(event) => {
-                      // Keep the mobile list in flow until the submit click completes.
-                      if (
-                        event.relatedTarget &&
-                        event.currentTarget.form?.contains(event.relatedTarget)
-                      )
-                        return;
-                      setOpen(false);
-                      setActive(-1);
-                    }}
-                  />
+            {!finished && (
+              <form onSubmit={submit} className="guess-form" autoComplete="off">
+                <div className="input-wrap">
+                  <label htmlFor="character-input" className="sr-only">
+                    Nome do personagem
+                  </label>
+                  <div className="search-field">
+                    <span aria-hidden="true">⌕</span>
+                    <input
+                      id="character-input"
+                      ref={inputRef}
+                      role="combobox"
+                      aria-autocomplete="list"
+                      aria-expanded={expanded}
+                      aria-controls="suggestions"
+                      aria-activedescendant={
+                        expanded && active >= 0
+                          ? `suggestion-${matches[active]?.id}`
+                          : undefined
+                      }
+                      autoComplete="off"
+                      spellCheck={false}
+                      maxLength={80}
+                      placeholder={
+                        session
+                          ? 'Busque um personagem…'
+                          : 'Preparando o desafio…'
+                      }
+                      value={query}
+                      disabled={!session}
+                      onChange={(event) => {
+                        setQuery(event.target.value);
+                        setOpen(true);
+                        setActive(-1);
+                        setFeedback('');
+                      }}
+                      onKeyDown={onKeys}
+                      onFocus={() => setOpen(true)}
+                      onBlur={(event) => {
+                        // Keep the mobile list in flow until the submit click completes.
+                        if (
+                          event.relatedTarget &&
+                          event.currentTarget.form?.contains(
+                            event.relatedTarget,
+                          )
+                        )
+                          return;
+                        setOpen(false);
+                        setActive(-1);
+                      }}
+                    />
+                  </div>
+                  <ul
+                    id="suggestions"
+                    className="suggestions"
+                    role="listbox"
+                    aria-label="Personagens encontrados"
+                    hidden={!expanded}
+                  >
+                    {matches.map((c, index) => (
+                      <li
+                        key={c.id}
+                        id={`suggestion-${c.id}`}
+                        role="option"
+                        aria-selected={index === active}
+                        onPointerDown={(event) => event.preventDefault()}
+                        onClick={() => submitGuess(c.name)}
+                      >
+                        <Portrait id={c.id} name={c.name} />
+                        <span>{c.name}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <ul
-                  id="suggestions"
-                  className="suggestions"
-                  role="listbox"
-                  aria-label="Personagens encontrados"
-                  hidden={!expanded}
+                <button
+                  className="primary"
+                  disabled={!session || !query.trim()}
+                  type="submit"
                 >
-                  {matches.map((c, index) => (
-                    <li
-                      key={c.id}
-                      id={`suggestion-${c.id}`}
-                      role="option"
-                      aria-selected={index === active}
-                      onPointerDown={(event) => event.preventDefault()}
-                      onClick={() => choose(c.name)}
-                    >
-                      <span>{c.name}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <button
-                className="primary"
-                disabled={!session || !query.trim()}
-                type="submit"
-              >
-                Arriscar palpite <span aria-hidden="true">→</span>
-              </button>
-            </form>
-          )}
+                  <span className="sr-only">Arriscar palpite</span>
+                  <span aria-hidden="true">➤</span>
+                </button>
+              </form>
+            )}
+          </div>
           <p className="feedback" role="status">
             {feedback}
           </p>
@@ -382,8 +458,7 @@ export default function Game() {
             >
               <table>
                 <caption className="sr-only">
-                  Palpites em ordem de tentativa. Setas indicam o arco da
-                  resposta em relação ao palpite.
+                  Palpites do mais recente ao mais antigo.
                 </caption>
                 <thead>
                   <tr>
@@ -396,29 +471,56 @@ export default function Game() {
                   </tr>
                 </thead>
                 <tbody>
-                  {guesses.map((id, index) => {
+                  {guesses.toReversed().map((id, index) => {
                     const c = characters.find((c) => c.id === id)!;
                     return (
-                      <tr key={id}>
+                      <tr
+                        key={id}
+                        className={id === revealedId ? 'revealing' : undefined}
+                      >
                         <th scope="row">
-                          <span className="guess-number">
-                            {String(index + 1).padStart(2, '0')}
-                          </span>
-                          {c.name}
+                          <div className="character-cell">
+                            <Portrait id={c.id} name={c.name} large />
+                            <span>
+                              <span className="sr-only">
+                                Tentativa {guesses.length - index}:{' '}
+                              </span>
+                              {c.name}
+                            </span>
+                          </div>
                         </th>
                         {fields.map(({ key }) => {
                           const clue = compare(c, daily!.answer, key);
                           return (
                             <td key={key}>
                               <div className={`clue ${clue}`}>
-                                <span
-                                  aria-hidden="true"
-                                  className="clue-symbol"
-                                >
-                                  {clueSymbols[clue]}
-                                </span>
                                 <span>
-                                  {c[key]}
+                                  {key === 'weapon' &&
+                                  c.weapon.every(
+                                    (value) =>
+                                      value === 'Não informada' ||
+                                      value === 'Nenhuma',
+                                  ) ? (
+                                    <span
+                                      className="weapon-empty"
+                                      aria-label="Sem arma"
+                                    >
+                                      ×
+                                    </span>
+                                  ) : Array.isArray(c[key]) ? (
+                                    (c[key] as readonly string[]).map(
+                                      (value) => (
+                                        <span
+                                          className="clue-value"
+                                          key={value}
+                                        >
+                                          {value}
+                                        </span>
+                                      ),
+                                    )
+                                  ) : (
+                                    c[key]
+                                  )}
                                   <span className="sr-only">
                                     : {clueLabels[clue]}
                                   </span>
@@ -434,6 +536,19 @@ export default function Game() {
               </table>
             </div>
           )}
+          {guesses.length > 0 && (
+            <div className="legend" aria-label="Indicadores das pistas">
+              <span>
+                <b className="legend-partial" /> Parcial
+              </span>
+              <span>
+                <b className="legend-match" /> Correto
+              </span>
+              <span>
+                <b className="legend-miss" /> Incorreto
+              </span>
+            </div>
+          )}
         </section>
 
         {finished && daily && (
@@ -443,11 +558,8 @@ export default function Game() {
             tabIndex={-1}
             ref={resultRef}
           >
-            <h2 id="result-title">
-              {won
-                ? `Você encontrou ${daily.answer.name}.`
-                : `O personagem era ${daily.answer.name}.`}
-            </h2>
+            <Portrait id={daily.answer.id} name={daily.answer.name} large />
+            <h2 id="result-title">{`Você encontrou ${daily.answer.name}.`}</h2>
             <button className="primary" onClick={share}>
               Compartilhar resultado <span aria-hidden="true">↗</span>
             </button>
@@ -467,6 +579,10 @@ export default function Game() {
             )}
           </section>
         )}
+        <footer className="site-footer">
+          <span>Um desafio diário para quem carrega a marca.</span>
+          <span>Projeto de fãs · Universo de Kentaro Miura</span>
+        </footer>
       </main>
 
       <dialog
@@ -483,30 +599,34 @@ export default function Game() {
         <h2 id="help-title">Como jogar</h2>
         <p>
           Descubra o mesmo personagem que todos os jogadores recebem no dia.
-          Você tem <strong>8 tentativas</strong>. Procure por nome ou apelido,
-          selecione e confirme seu palpite.
+          Jogue até acertar, sem limite de palpites. Procure pelo nome e clique
+          no personagem para confirmar seu palpite.
         </p>
         <p>
-          <strong>✓ Igual</strong> e <strong>× Diferente</strong> comparam os
-          atributos. No arco, <strong>↓</strong> significa que a resposta usa um
-          arco anterior; <strong>↑</strong>, posterior ao seu palpite.
+          <strong>Verde</strong>: todos os valores são iguais, sem importar a
+          ordem. <strong>Laranja</strong>: existe algum valor em comum, mas as
+          listas são diferentes. <strong>Vermelho</strong>: nenhum valor em
+          comum.
         </p>
         <p>
-          A ordem é: Espadachim Negro → Era de Ouro → Convicção → Falcão
-          Milenar.
+          A ordem é: Espadachim Negro → Era de Ouro → Convicção → Falcão Milenar
+          → Fantasia.
         </p>
         <p>
-          <strong>Arco de referência não é estreia.</strong> Cada ficha
-          representa uma fase definida: Griffith e Casca antes do Eclipse;
-          Farnese e Serpico na Santa Sé; Isidro e Schierke com Guts no Falcão
-          Milenar. Núcleo e arma principal seguem esse recorte. Personagens
-          diferentes podem ter todas as pistas iguais: apenas o nome correto
-          vence.
+          <strong>Arco de referência não é estreia.</strong> Natureza, núcleos e
+          armas/poderes podem reunir vários valores confirmados ao longo do
+          mangá. Griffith e Femto continuam como identidades separadas. Gênero e
+          arco têm apenas um valor. Personagens diferentes podem ter todas as
+          pistas iguais: apenas o nome correto vence.
         </p>
         <p>
-          Há spoilers de identidade e afiliação até o Falcão Milenar. O elenco
-          inicial tem {characters.length} personagens e o calendário se repete a
-          cada 14 dias.
+          Há spoilers de identidade e afiliação até Fantasia. O catálogo tem{' '}
+          {characters.length} fichas do mangá e o calendário se repete a cada{' '}
+          {schedule.length} dias a partir de 03/10/2026.
+        </p>
+        <p>
+          “Não informada” indica um atributo sem confirmação nas fontes. Na
+          coluna de armas, × representa ausência de arma cadastrada.
         </p>
         <p>
           O jogo muda à <strong>meia-noite de Brasília</strong>. O progresso é
@@ -518,9 +638,11 @@ export default function Game() {
           <ul className="roster">
             {characters.map((c) => (
               <li key={c.id}>
+                <Portrait id={c.id} name={c.name} />
                 <strong>{c.name}</strong> · {c.arc}
                 <p>
-                  {c.nature} · {c.group} · {c.weapon}
+                  {c.gender} · {c.nature.join(', ')} · {c.group.join(', ')} ·{' '}
+                  {c.weapon.join(', ')}
                 </p>
                 <p>
                   {c.note}{' '}
@@ -531,6 +653,52 @@ export default function Game() {
               </li>
             ))}
           </ul>
+        </details>
+        <details className="image-credits">
+          <summary>Créditos das imagens</summary>
+          <p>
+            Fundo:{' '}
+            <a
+              href="https://hdqwalls.com/berserk-wallpaper"
+              target="_blank"
+              rel="noreferrer"
+            >
+              HDQWalls
+            </a>
+            . Retratos:{' '}
+            <a
+              href="https://berserk.fandom.com/wiki/Category:Characters_by_Source"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Berserk Wiki
+            </a>
+            ,{' '}
+            <a
+              href="https://www.darkhorse.com/books/14-937/berserk-volume-22-tpb/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Dark Horse
+            </a>{' '}
+            e{' '}
+            <a
+              href="https://myanimelist.net/manga/2/Berserk/characters"
+              target="_blank"
+              rel="noreferrer"
+            >
+              MyAnimeList
+            </a>
+            , obtidos via Jikan; Femto:{' '}
+            <a
+              href="https://tenor.com/view/femto-gif-22248771"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Tenor
+            </a>
+            . Berserk e seus personagens pertencem aos respectivos titulares.
+          </p>
         </details>
       </dialog>
     </>

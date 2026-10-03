@@ -4,7 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Berserkdle — Personagem do dia',
   description:
-    'Um personagem. Oito tentativas. Um desafio diário no mundo de Berserk, com pistas a cada palpite.',
+    'Um personagem. Palpites ilimitados. Um desafio diário no mundo de Berserk, com pistas a cada palpite.',
 };
 export const viewport: Viewport = { themeColor: '#151513' };
 export default function RootLayout({
